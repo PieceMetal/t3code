@@ -13,6 +13,22 @@ import * as Scope from "effect/Scope";
 import * as Electron from "electron";
 
 export const DESKTOP_HOST = "app";
+
+// A local renderer needs its own secure origin without registering a Windows shell URL handler.
+export function registerLocalRendererOrigin(scheme: string): void {
+  Electron.protocol.registerSchemesAsPrivileged([
+    {
+      scheme,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true,
+      },
+    },
+  ]);
+}
 const DESKTOP_PRODUCTION_SCHEME = "t3code";
 const DESKTOP_DEVELOPMENT_SCHEME = "t3code-dev";
 

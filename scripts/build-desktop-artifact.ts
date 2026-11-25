@@ -2821,9 +2821,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
 ) {
   const buildConfig: Record<string, unknown> = {
     afterPack: (yield* Path.Path).join(yield* RepoRoot, "scripts/prepare-server-compile-cache.cjs"),
-    appId: DESKTOP_APP_ID,
+    appId: platform === "win" ? "local.agentdesk.desktop" : DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "T3-Code-${version}-${arch}.${ext}",
+    artifactName: "Local-Agent-Desk-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,
@@ -2846,6 +2846,15 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       ...(platform === "linux" ? LINUX_BROWSER_SECRET_EXTRA_RESOURCES : []),
       ...(platform === "mac" ? MAC_APPLE_SPEECH_EXTRA_RESOURCES : []),
       ...(platform === "win" ? WINDOWS_SERVER_EXTRA_RESOURCES : []),
+      ...(platform === "win"
+        ? [
+            {
+              from: "apps/desktop/prod-resources/personal-windows",
+              to: ".",
+              filter: ["Start-LocalAgentDesk.ps1", "LocalDeskIntegrity.cs"],
+            },
+          ]
+        : []),
       ...(platform === "win" && wslRuntimeBundled ? WSL_RUNTIME_EXTRA_RESOURCES : []),
     ],
   };
@@ -3899,6 +3908,16 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
+  if (options.platform === "win") {
+    const personalResources = path.join(stageProdResourcesDir, "personal-windows");
+    yield* fs.makeDirectory(personalResources, { recursive: true });
+    for (const name of ["Start-LocalAgentDesk.ps1", "LocalDeskIntegrity.cs"]) {
+      yield* fs.copyFile(
+        path.join(repoRoot, "personal-windows", name),
+        path.join(personalResources, name),
+      );
+    }
+  }
 
   const configuredMacPasskeySigning =
     options.platform === "mac" && options.signed

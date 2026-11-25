@@ -1,4 +1,5 @@
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { windowsPowerShellPath } from "@t3tools/shared/windowsSystem";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -16,6 +17,42 @@ import { type CliServerFlags, resolveServerConfig, sharedServerCommandFlags } fr
 
 const encodeCommand = Schema.encodeEffect(Schema.fromJsonString(Schema.String));
 
+// A direct Windows invocation must satisfy the same OS boundary as the packaged launcher.
+const checkWindowsProcessRights = Effect.gen(function* () {
+  if ((yield* HostProcess.Platform) !== "win32") return;
+  const reader = yield* ProcessRunner.ProcessRunner;
+  const command = [
+    "$ErrorActionPreference = 'Stop'",
+    "$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())",
+    "if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }",
+    "$whoami = [IO.Path]::Combine([Environment]::SystemDirectory, 'whoami.exe')",
+    "$groups = & $whoami /groups /fo csv /nh",
+    "if ($LASTEXITCODE -ne 0) { exit 1 }",
+    String.raw`$label = [regex]::Match(($groups -join ' '), '"S-1-16-(\d+)"')`,
+    "if (-not $label.Success -or [int]$label.Groups[1].Value -gt 8192) { exit 1 }",
+    "[Console]::WriteLine('standard')",
+  ].join("\n");
+  const result = yield* reader.run({
+    command: windowsPowerShellPath(yield* HostProcess.Environment),
+    args: [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-WindowStyle",
+      "Hidden",
+      "-Command",
+      command,
+    ],
+    timeout: "10 seconds",
+  });
+  if (result.code !== 0 || result.stdout.trim() !== "standard") {
+    return yield* new CliError.UserError({
+      cause:
+        "Open Start Local Agent Desk.cmd. The server requires standard-user rights and medium or lower Windows integrity.",
+    });
+  }
+}).pipe(Effect.provide(ProcessRunner.layer));
+
 const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   flags: CliServerFlags,
   options?: {
@@ -25,6 +62,7 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   },
 ) {
   // Before config resolution, which claims a port and creates directories.
+  yield* checkWindowsProcessRights;
   const { runServer } = yield* Effect.promise(() => import("../server.ts"));
   const logLevel = yield* GlobalFlag.LogLevel;
   const selectAutomaticPort = yield* AutomaticPort.make.pipe(Effect.provide(ProcessRunner.layer));

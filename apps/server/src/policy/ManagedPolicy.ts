@@ -7,25 +7,21 @@
 import * as NodeModule from "node:module";
 
 import { ManagedPolicyDocument, type ManagedPolicySummary } from "@t3tools/contracts";
-import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import {
   ManagedPolicyFileError,
-  managedPolicyPath,
   layerWindowsRegistry,
-  readManagedPolicy,
+  readLocalOnlyPolicy,
   readManagedPolicyFile,
 } from "@t3tools/shared/managedPolicyFile";
 
-import { telemetryChannel } from "../config.ts";
 import * as ManagedLimits from "./managedLimits.ts";
 import * as ManagedProviders from "./managedProviders.ts";
 import * as ManagedSettings from "./managedSettings.ts";
@@ -175,27 +171,12 @@ export const load = Effect.fn("ManagedPolicy.load")(function* (path: string) {
 });
 
 const make = Effect.gen(function* () {
-  // Source builds may read a policy from elsewhere so it can be tried without root. Release
-  // builds never do: any override a user can set is a way around the policy.
-  const devPath =
-    telemetryChannel === "dev"
-      ? yield* Config.option(Config.String("T3CODE_DEV_MANAGED_POLICY_PATH")).pipe(
-          Effect.orElseSucceed(() => Option.none<string>()),
-        )
-      : Option.none<string>();
   const platform = yield* HostProcess.Platform;
-  const policy = yield* Option.match(devPath, {
-    onSome: load,
-    onNone: () =>
-      readManagedPolicy(
-        platform,
-        ManagedProviders.knownDriverLabels().map(({ driver }) => driver),
-      ).pipe(
-        Effect.flatMap((found) =>
-          fromDocument(found?.source ?? managedPolicyPath(platform), found?.document),
-        ),
-      ),
-  });
+  const found = yield* readLocalOnlyPolicy(
+    platform,
+    ManagedProviders.knownDriverLabels().map(({ driver }) => driver),
+  );
+  const policy = yield* fromDocument(found.source, found.document);
   const path = policy.path;
   if (policy.summary !== undefined) {
     yield* Effect.logInfo("Managed policy applies.", {

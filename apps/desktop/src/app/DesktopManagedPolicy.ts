@@ -8,7 +8,7 @@ import type { ManagedPolicyDocument } from "@t3tools/contracts";
 import {
   layerWindowsRegistry,
   ManagedPolicyFileError,
-  readManagedPolicy,
+  readLocalOnlyPolicy,
   WindowsRegistry,
 } from "@t3tools/shared/managedPolicyFile";
 import * as Context from "effect/Context";
@@ -20,7 +20,9 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 
-type FoundPolicy = Effect.Success<ReturnType<typeof readManagedPolicy>>;
+type FoundPolicy =
+  | { readonly source: string; readonly document: ManagedPolicyDocument }
+  | undefined;
 const isManagedPolicyFileError = Schema.is(ManagedPolicyFileError);
 
 export class DesktopManagedPolicy extends Context.Service<
@@ -36,7 +38,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const { platform } = yield* DesktopEnvironment.DesktopEnvironment;
     const read = yield* Effect.cached(
-      readManagedPolicy(platform).pipe(
+      readLocalOnlyPolicy(platform).pipe(
         Effect.provideService(FileSystem.FileSystem, yield* FileSystem.FileSystem),
         Effect.provideService(
           ChildProcessSpawner.ChildProcessSpawner,

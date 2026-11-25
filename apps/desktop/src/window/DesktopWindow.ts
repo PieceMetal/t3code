@@ -1036,6 +1036,9 @@ export const make = Effect.gen(function* () {
       window.webContents.setBackgroundThrottling(true);
       if (persistedSettings.mainWindowMaximized) window.maximize();
       yield* electronWindow.reveal(window);
+      yield* logWindowInfo("desktop main window ready", {
+        scheme: new URL(applicationUrl).protocol,
+      });
       yield* dismissConnectingSplash;
     });
     pendingMainReveals.set(window, revealWhenReady);

@@ -17,6 +17,9 @@ afterAll(() => {
   NodeFS.rmSync(clerkStateDir, { recursive: true, force: true });
 });
 
+const registerSchemesAsPrivileged = vi.hoisted(() => vi.fn());
+vi.mock("electron", () => ({ protocol: { registerSchemesAsPrivileged } }));
+
 const { createClerkBridgeMock, requestSingleInstanceLockMock, storageAdapter, storageMock } =
   vi.hoisted(() => ({
     createClerkBridgeMock: vi.fn(),
@@ -113,6 +116,7 @@ const layerDesktopClerk = (
 describe("DesktopClerk", () => {
   beforeEach(() => {
     createClerkBridgeMock.mockReset();
+    registerSchemesAsPrivileged.mockClear();
     requestSingleInstanceLockMock.mockReset().mockReturnValue(true);
     storageMock.mockReset();
   });
@@ -171,6 +175,20 @@ describe("DesktopClerk", () => {
         [{ path: NodePath.join(NodePath.resolve(clerkStateDir), "clerk") }],
       ]);
       assert.notStrictEqual(createClerkBridgeMock.mock.calls[0]?.[0]?.storage, storageAdapter);
+      assert.lengthOf(registerSchemesAsPrivileged.mock.calls, 1);
+      assert.deepEqual(registerSchemesAsPrivileged.mock.calls[0]?.[0], [
+        {
+          scheme: isDevelopment ? "t3code-dev" : "t3code",
+          privileges: {
+            standard: true,
+            secure: true,
+            supportFetchAPI: true,
+            corsEnabled: true,
+            stream: true,
+          },
+        },
+      ]);
+      assert.notProperty(createClerkBridgeMock.mock.calls[0]![0], "renderer");
     },
   );
 

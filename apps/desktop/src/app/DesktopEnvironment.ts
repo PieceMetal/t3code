@@ -85,7 +85,7 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "T3 Code";
+const APP_BASE_NAME = "Local Agent Desk";
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
@@ -150,9 +150,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
   const isDevelopment = Option.isSome(devServerUrl);
   const appDataDirectory =
     input.platform === "win32"
-      ? Option.getOrElse(config.appDataDirectory, () =>
-          path.join(homeDirectory, "AppData", "Roaming"),
-        )
+      ? path.join(homeDirectory, ".local-agent-desk", "desktop")
       : input.platform === "darwin"
         ? path.join(homeDirectory, "Library", "Application Support")
         : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
@@ -228,7 +226,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     branding,
     displayName,
     appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
-      isDevelopment ? "com.t3tools.t3code.dev" : "com.t3tools.t3code",
+      isDevelopment ? "local.agentdesk.desktop.dev" : "local.agentdesk.desktop",
     ),
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxApplicationsDir,

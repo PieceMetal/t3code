@@ -601,3 +601,40 @@ export const readManagedPolicy = Effect.fn("readManagedPolicy")(function* (
   }
   return platformPolicy ?? (file === undefined ? undefined : { source: filePath, document: file });
 });
+
+/** The personal distribution restricts the machine policy at the same boundary on both hosts. */
+export const readLocalOnlyPolicy = Effect.fn("readLocalOnlyPolicy")(function* (
+  platform: NodeJS.Platform,
+  knownDrivers: ReadonlyArray<string> = [],
+) {
+  const machine = yield* readManagedPolicy(platform, knownDrivers);
+  const source = machine?.source ?? "Local Agent Desk";
+  const document = machine?.document;
+  const limits = document?.limits;
+  const clients = limits?.clients ?? (["desktop", "local-browser"] as const);
+  const [first, ...rest] = clients.filter((client) => client !== "remote");
+  if (first === undefined) {
+    return yield* new ManagedPolicyFileError({
+      path: source,
+      reason: "the machine policy allows no local client",
+    });
+  }
+  return {
+    source,
+    document: {
+      schemaVersion: 1,
+      organization: "Local Agent Desk",
+      ...document,
+      limits: {
+        ...limits,
+        clients: [first, ...rest],
+        connect: false,
+        previewTunnel: false,
+        webhookTasks: false,
+        browserCookieImport: false,
+        telemetry: false,
+        updates: { ...limits?.updates, mode: "off", allowNightly: false },
+      },
+    } satisfies ManagedPolicyDocument,
+  };
+});

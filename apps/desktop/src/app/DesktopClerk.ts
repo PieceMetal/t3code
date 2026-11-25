@@ -86,6 +86,13 @@ export const desktopClerkFrontendApiHostname = resolveDesktopClerkFrontendApiHos
 );
 
 function createDesktopClerkBridge(stateDir: string, isDevelopment: boolean, userDataPath: string) {
+  const scheme = ElectronProtocol.getDesktopScheme(isDevelopment);
+  // The personal build has no cloud sign-in. Keep the origin inside Electron instead of
+  // asking Clerk to register its OAuth callback as the operating system's URL handler.
+  const renderer = desktopClerkFrontendApiHostname
+    ? { scheme, host: ElectronProtocol.DESKTOP_HOST }
+    : undefined;
+  if (renderer === undefined) ElectronProtocol.registerLocalRendererOrigin(scheme);
   return createClerkBridge({
     storage: openClerkTokenStorage(
       stateDir,
@@ -94,10 +101,7 @@ function createDesktopClerkBridge(stateDir: string, isDevelopment: boolean, user
     ),
     manageSingleInstanceLock: false,
     passkeys: true,
-    renderer: {
-      scheme: ElectronProtocol.getDesktopScheme(isDevelopment),
-      host: ElectronProtocol.DESKTOP_HOST,
-    },
+    ...(renderer === undefined ? {} : { renderer }),
   });
 }
 

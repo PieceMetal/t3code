@@ -1042,7 +1042,14 @@ describe("DesktopBackendConfiguration", () => {
         Layer.provideMerge(layerServerExposure),
         Layer.provideMerge(DesktopAppSettings.layerTest()),
         Layer.provideMerge(DesktopWslServerTree.layerTest()),
-        Layer.provideMerge(DesktopWslEnvironment.layer),
+        // This fixture has no WSL executable, including on Windows hosts that have WSL installed.
+        Layer.provideMerge(
+          DesktopWslEnvironment.layer.pipe(
+            Layer.provide(
+              Layer.succeed(HostProcess.Environment, { WINDIR: "/tmp/t3-wsl-isavailable/windows" }),
+            ),
+          ),
+        ),
         Layer.provideMerge(DesktopManagedPolicy.layerTest()),
         Layer.provideMerge(
           Layer.succeed(

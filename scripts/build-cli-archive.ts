@@ -634,6 +634,19 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
 
   yield* Effect.log(`[cli-archive] Staging ${stem}...`);
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
+  if (input.platform === "win") {
+    for (const name of [
+      "Start Local Agent Desk.cmd",
+      "Start-LocalAgentDesk.ps1",
+      "LocalDeskIntegrity.cs",
+    ]) {
+      yield* fs.copyFile(
+        path.join(repoRoot, "personal-windows", name),
+        path.join(contentDir, name),
+      );
+    }
+    yield* fs.copyFile(path.join(repoRoot, "LICENSE"), path.join(contentDir, "LICENSE"));
+  }
   yield* stageWebClient(webClient, path.join(contentDir, "client"));
   yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
   yield* stageRuntimeExternals({

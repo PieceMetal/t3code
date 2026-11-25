@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
+import { ProviderDriverKind } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -12,6 +13,7 @@ import * as HostProcess from "./HostProcess.ts";
 import {
   MACOS_MANAGED_PREFERENCES_PATH,
   managedPolicyPath,
+  readLocalOnlyPolicy,
   readManagedPolicy,
   type RegistryKey,
   WINDOWS_POLICY_KEY,
@@ -110,6 +112,60 @@ const read = (
     }),
     Effect.provide(machine(files, commands, registry)),
   );
+
+describe("readLocalOnlyPolicy", () => {
+  const readLocal = (document?: object) =>
+    readLocalOnlyPolicy("win32").pipe(
+      Effect.provide(
+        machine(
+          document === undefined ? {} : { [managedPolicyPath("win32")]: JSON.stringify(document) },
+          {},
+          {},
+        ),
+      ),
+    );
+
+  it.effect(
+    "applies local limits without a machine policy and retains narrower machine limits",
+    () =>
+      Effect.gen(function* () {
+        const personal = yield* readLocal();
+        assert.deepEqual(personal.document.limits, {
+          clients: ["desktop", "local-browser"],
+          connect: false,
+          previewTunnel: false,
+          webhookTasks: false,
+          browserCookieImport: false,
+          telemetry: false,
+          updates: { mode: "off", allowNightly: false },
+        });
+        assert.isUndefined(personal.document.settings?.defaultRuntimeMode);
+        assert.isUndefined(personal.document.limits.maxRuntimeMode);
+        const managed = {
+          schemaVersion: 1,
+          organization: "Managed test",
+          settings: { defaultRuntimeMode: { value: "auto-accept-edits", locked: false } },
+          limits: {
+            clients: ["desktop", "remote"],
+            providers: { allowedDrivers: [ProviderDriverKind.make("codex")] },
+            maxRuntimeMode: "auto-accept-edits",
+          },
+        } as const;
+        const applied = yield* readLocal(managed);
+        assert.deepEqual(
+          applied.document.settings?.defaultRuntimeMode,
+          managed.settings.defaultRuntimeMode,
+        );
+        assert.equal(applied.document.limits.maxRuntimeMode, "auto-accept-edits");
+        assert.deepEqual(applied.document.limits.clients, ["desktop"]);
+        assert.deepEqual(applied.document.limits.providers, managed.limits.providers);
+        const conflict = yield* Effect.flip(
+          readLocal({ ...managed, limits: { clients: ["remote"] } }),
+        );
+        assert.include(conflict.reason, "no local client");
+      }),
+  );
+});
 
 describe("readManagedPolicy", () => {
   it.effect("reads a macOS configuration profile, and refuses one beside a policy file", () =>
