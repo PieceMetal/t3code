@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Local Agent Desk",
-  "short_name": "Local Agent Desk",
+  "name": "T3 Agent Desk",
+  "short_name": "T3 Agent Desk",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

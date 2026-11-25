@@ -2799,8 +2799,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
 
 export function resolveDesktopProductName(version: string): string {
   return resolveDesktopUpdateChannel(version) === "nightly"
-    ? "T3 Code (Nightly)"
-    : (desktopPackageJson.productName ?? "T3 Code");
+    ? `${desktopPackageJson.productName} (Nightly)`
+    : desktopPackageJson.productName;
 }
 
 export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
@@ -2823,7 +2823,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     afterPack: (yield* Path.Path).join(yield* RepoRoot, "scripts/prepare-server-compile-cache.cjs"),
     appId: platform === "win" ? "local.agentdesk.desktop" : DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "Local-Agent-Desk-${version}-${arch}.${ext}",
+    artifactName: "T3-Agent-Desk-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,

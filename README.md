@@ -1,10 +1,10 @@
-<p align="center">
-  <a href="https://t3.codes">
-    <img src="./assets/prod/t3-black-web-icon-192x192.png" width="80" height="80" alt="T3 Code logo" />
-  </a>
-</p>
+# T3 Agent Desk
 
-<h1 align="center">T3 Code</h1>
+Unofficial Windows desktop fork of [T3 Code](https://github.com/pingdotgg/t3code), maintained for local use.
+
+For unattended Windows maintenance on this workstation, start `pythonw.exe` directly with `personal-windows/run-background.pyw`, the task, and a log path. For example, `pythonw.exe personal-windows/run-background.pyw Verify verify.log` checks the installed desktop. Use `Check` with `-OutputDirectory` to run the repository checks, or `Build` with `-Version` and `-OutputDirectory` to package the desktop and CLI. The launcher requires pywin32 and returns the task's exit code.
+
+The links and documentation below describe the upstream project.
 
 <p align="center">The open-source control plane for coding agents.</p>
 

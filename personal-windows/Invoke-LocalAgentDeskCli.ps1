@@ -4,7 +4,7 @@ $root = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.local-agent-de
 $app = Join-Path $root 'app'
 $launcher = Join-Path $app 'Start-LocalAgentDesk.ps1'
 if ($forward.Count -eq 0 -or ($forward.Count -eq 1 -and $forward[0] -ieq 'start')) {
-    $desktop = Join-Path $root 'desktop-app/Local Agent Desk.exe'
+    $desktop = Join-Path $root 'desktop-app/T3 Agent Desk.exe'
     $start = [Diagnostics.ProcessStartInfo]::new($desktop)
     $start.UseShellExecute = $false
     $start.WorkingDirectory = [IO.Path]::GetDirectoryName($desktop)

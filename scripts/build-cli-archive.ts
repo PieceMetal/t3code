@@ -636,7 +636,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
   if (input.platform === "win") {
     for (const name of [
-      "Start Local Agent Desk.cmd",
+      "Start T3 Agent Desk.cmd",
       "Start-LocalAgentDesk.ps1",
       "LocalDeskIntegrity.cs",
     ]) {

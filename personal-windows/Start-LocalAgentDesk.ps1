@@ -23,7 +23,7 @@ $userData = Join-Path $data 'userdata'
 $secrets = Join-Path $userData 'secrets'
 $scratch = Join-Path $root 'temp'
 $runtime = if ($Desktop) {
-    Join-Path ([IO.Directory]::GetParent($PSScriptRoot).FullName) 'Local Agent Desk.exe'
+    Join-Path ([IO.Directory]::GetParent($PSScriptRoot).FullName) 'T3 Agent Desk.exe'
 } else {
     Join-Path $PSScriptRoot 't3.exe'
 }
@@ -38,7 +38,7 @@ function Assert-PrivateItem([string]$Path) {
         Where-Object { $_.AccessControlType -eq 'Allow' })
     if ($owner -notin $trusted -or $grants.Count -eq 0 -or
         @($grants | Where-Object { $_.IdentityReference.Value -notin $trusted }).Count -gt 0) {
-        throw "Local Agent Desk requires a private Windows access list at $Path"
+        throw "T3 Agent Desk requires a private Windows access list at $Path"
     }
 }
 
@@ -103,7 +103,7 @@ if ($Prepare) {
 }
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) -or
     -not [LocalAgentDesk.ProcessIntegrity]::IsAtMostMedium()) {
-    throw 'Local Agent Desk needs standard-user rights and medium or lower Windows integrity.'
+    throw 'T3 Agent Desk needs standard-user rights and medium or lower Windows integrity.'
 }
 Set-Location -LiteralPath $data
 if ($VerifyDesktop) { exit 0 }

@@ -39,7 +39,7 @@ if (process.platform !== "win32" || !app.isPackaged) {
   );
   if (result.status !== 0) {
     dialog.showErrorBox(
-      "Local Agent Desk",
+      "T3 Agent Desk",
       "Windows could not start the desktop app with standard-user rights. Check the app and private data directory permissions.",
     );
     app.exit(1);

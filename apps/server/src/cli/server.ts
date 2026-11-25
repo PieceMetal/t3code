@@ -48,7 +48,7 @@ const checkWindowsProcessRights = Effect.gen(function* () {
   if (result.code !== 0 || result.stdout.trim() !== "standard") {
     return yield* new CliError.UserError({
       cause:
-        "Open Start Local Agent Desk.cmd. The server requires standard-user rights and medium or lower Windows integrity.",
+        "Open Start T3 Agent Desk.cmd. The server requires standard-user rights and medium or lower Windows integrity.",
     });
   }
 }).pipe(Effect.provide(ProcessRunner.layer));
@@ -115,9 +115,9 @@ export const startCommand = Command.make("start", { ...sharedServerCommandFlags 
 const { autoBootstrapProjectFromCwd: _, ...serveCommandFlags } = sharedServerCommandFlags;
 
 export const serveCommand = Command.make("serve", serveCommandFlags).pipe(
-  Command.withShortDescription("Run T3 Code in this terminal, with no browser."),
+  Command.withShortDescription("Run T3 Agent Desk in this terminal, with no browser."),
   Command.withDescription(
-    "Run T3 Code in this terminal without opening a browser, and print pairing details. The background service runs this. To set up access from your other devices, run `t3 up`.",
+    "Run T3 Agent Desk in this terminal without opening a browser, and print pairing details. The background service runs this. To set up access from your other devices, run `t3 up`.",
   ),
   Command.withHandler((flags) =>
     runServerCommand(

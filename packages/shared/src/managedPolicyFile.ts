@@ -608,7 +608,7 @@ export const readLocalOnlyPolicy = Effect.fn("readLocalOnlyPolicy")(function* (
   knownDrivers: ReadonlyArray<string> = [],
 ) {
   const machine = yield* readManagedPolicy(platform, knownDrivers);
-  const source = machine?.source ?? "Local Agent Desk";
+  const source = machine?.source ?? "T3 Agent Desk";
   const document = machine?.document;
   const limits = document?.limits;
   const clients = limits?.clients ?? (["desktop", "local-browser"] as const);
@@ -623,7 +623,7 @@ export const readLocalOnlyPolicy = Effect.fn("readLocalOnlyPolicy")(function* (
     source,
     document: {
       schemaVersion: 1,
-      organization: "Local Agent Desk",
+      organization: "T3 Agent Desk",
       ...document,
       limits: {
         ...limits,
