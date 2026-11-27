@@ -459,6 +459,9 @@ export const layerProduction = Layer.mergeAll(
   layerProviderContinuationWorkerProvided,
   layerAgentSessionScannerProvided,
   layerAgentSessionImporterProvided,
+  Layer.effectDiscard(
+    AgentSessionImporter.AgentSessionImporter.use((importer) => importer.startCodexRefresh),
+  ).pipe(Layer.provide(layerAgentSessionImporterProvided)),
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),

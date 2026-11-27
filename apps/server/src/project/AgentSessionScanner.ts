@@ -250,6 +250,14 @@ export class AgentSessionScanner extends Context.Service<
       workspaceRoot: string,
       completedSources?: ReadonlyArray<AgentSessionImportSource>,
     ) => Stream.Stream<AgentSessionRecentThread, AgentSessionScanError>;
+    readonly refreshCodexTranscript: (source: AgentSessionImportSource) => Effect.Effect<
+      | {
+          readonly source: AgentSessionImportSource;
+          readonly thread: AgentSessionThread;
+        }
+      | "unavailable"
+      | null
+    >;
   }
 >()("t3/project/AgentSessionScanner") {}
 
@@ -525,6 +533,7 @@ function parseAgentSessionRecords(
   records: ReadonlyArray<DecodedTranscriptRecord>,
   claudeFields: ClaudeFields,
   droppedMessageCount: number,
+  maxMessages = MAX_IMPORTED_MESSAGES,
 ): AgentSessionThread | "empty" | null {
   const fallbackTimestamp = DateTime.formatIso(DateTime.makeUnsafe(input.lastActiveAtMs));
   // Claude filenames are session IDs. Codex rollout filenames include extra
@@ -620,7 +629,7 @@ function parseAgentSessionRecords(
     hasAssistantMessage ||= message.role === "assistant";
     conversationMessageCount += 1;
     messages.push(message);
-    if (messages.length > MAX_IMPORTED_MESSAGES) messages.shift();
+    if (messages.length > maxMessages) messages.shift();
   };
 
   const hasMatchingCodexEventInTurn = (text: string) => {
@@ -755,7 +764,7 @@ function parseAgentSessionRecords(
   const { codexResponseUser: _codexResponseUser, ...visibleFirstUserMessage } = firstUserMessage;
   const retainedMessages = firstUserMessageRetained
     ? visibleMessages
-    : [visibleFirstUserMessage, ...visibleMessages.slice(-(MAX_IMPORTED_MESSAGES - 1))];
+    : [visibleFirstUserMessage, ...visibleMessages.slice(-(maxMessages - 1))];
 
   return {
     source: input.source,
@@ -2386,7 +2395,40 @@ export const make = Effect.gen(function* () {
     completedSources = [],
   ) => Stream.unwrap(prepareRecentThreads(workspaceRoot, completedSources));
 
-  return AgentSessionScanner.of({ scan, recentThreads });
+  const refreshCodexTranscript: AgentSessionScanner["Service"]["refreshCodexTranscript"] =
+    Effect.fn("AgentSessionScanner.refreshCodexTranscript")(function* (source) {
+      if (source.provider !== "codex") return null;
+      const info = yield* statOption(source.filePath);
+      if (Option.isNone(info) || info.value.type !== "File") return "unavailable" as const;
+      const identity = transcriptIdentity(source.filePath, info.value);
+      if (sameTranscriptIdentity(source, identity)) return null;
+      const snapshot = yield* readTranscript(source.filePath, identity, "codex");
+      if (snapshot === null || codexHistoryBase(snapshot.records) !== undefined) {
+        return "unavailable" as const;
+      }
+      const thread = parseAgentSessionRecords(
+        {
+          source: "codex",
+          providerInstanceId: source.providerInstanceId,
+          fallbackSessionId: source.providerSessionId,
+          lastActiveAtMs: identity.mtimeMs ?? DateTime.toEpochMillis(yield* DateTime.now),
+        },
+        snapshot.records,
+        snapshot.claudeFields,
+        snapshot.droppedMessageCount,
+        Infinity,
+      );
+      if (
+        thread === null ||
+        thread === "empty" ||
+        thread.providerSessionId !== source.providerSessionId
+      ) {
+        return "unavailable" as const;
+      }
+      return { thread, source: { ...source, ...identity } };
+    });
+
+  return AgentSessionScanner.of({ scan, recentThreads, refreshCodexTranscript });
 });
 
 export const layer = Layer.effect(AgentSessionScanner, make).pipe(

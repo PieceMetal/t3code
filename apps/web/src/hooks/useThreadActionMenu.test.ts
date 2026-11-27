@@ -20,6 +20,7 @@ function deferred<T>() {
 const state = vi.hoisted(() => ({
   granted: new Set<string>(),
   effects: [] as string[],
+  canRefreshCodexHistory: false,
   completed: deferred<void>(),
   show: vi.fn<
     (
@@ -110,6 +111,10 @@ vi.mock("./useCopyToClipboard", () => ({
 vi.mock("./useHandleNewThread", () => ({
   useNewThreadHandler: () => async () => recordEffect("draft"),
 }));
+vi.mock("./useRefreshCodexHistory", () => ({
+  canRefreshCodexHistory: () => state.canRefreshCodexHistory,
+  useRefreshCodexHistory: () => async () => recordEffect("refresh-codex-history"),
+}));
 vi.mock("./useSettings", () => ({
   useClientSettings: (select: (settings: unknown) => unknown) =>
     select({
@@ -161,6 +166,7 @@ const createMenu = (options: { readonly onFind?: (threadRef: typeof target) => v
 beforeEach(() => {
   state.granted = new Set(["primary"]);
   state.effects = [];
+  state.canRefreshCodexHistory = false;
   state.completed = deferred<void>();
   state.show.mockReset().mockResolvedValue(null);
 });
@@ -192,5 +198,22 @@ describe("thread menu permissions", () => {
     expect(items[0]?.disabled).not.toBe(true);
     expect(state.effects).toEqual(["find"]);
     expect(onFind).toHaveBeenCalledExactlyOnceWith(target);
+  });
+
+  it("refreshes an imported Codex thread with operate permission", async () => {
+    state.canRefreshCodexHistory = true;
+    createMenu().openMenu(position);
+    expect(state.show.mock.calls[0]![0].some((item) => item.id === "refresh-codex-history")).toBe(
+      false,
+    );
+
+    state.granted.add("secondary");
+    state.show.mockResolvedValue("refresh-codex-history");
+    createMenu().openMenu(position);
+    await state.completed.promise;
+    expect(state.show.mock.calls[1]![0]).toContainEqual(
+      expect.objectContaining({ id: "refresh-codex-history", label: "Refresh Codex history" }),
+    );
+    expect(state.effects).toEqual(["refresh-codex-history"]);
   });
 });

@@ -112,6 +112,12 @@ continue a large batch, open the Welcome page again and pick the project in
 **Review all**. Completed conversations are not imported again. You can continue
 without the remaining history.
 
+While T3 Code runs, it checks imported Codex conversations for newly saved
+messages every five seconds. Select **Refresh Codex history** from an imported
+conversation's menu to check it immediately. Refresh appends messages when the
+saved history matches the imported conversation and the conversation has not
+run in T3 Code. Other conversations still use the import flow above.
+
 You can start without importing. While an import runs, T3 Code stays on the
 Welcome page. If you quit, open the Welcome page again from **Settings → About**; the
 projects you started stay checked.

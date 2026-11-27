@@ -15,6 +15,7 @@ import {
   ThreadId,
   TurnItemId,
   type AgentSessionImportInput,
+  type AgentSessionImportSource,
   type AgentSessionImportResult,
   type OrchestrationV2AppThread,
   type OrchestrationV2ConversationMessage,
@@ -29,6 +30,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
@@ -205,9 +207,144 @@ const make = Effect.gen(function* () {
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const settingsService = yield* ServerSettings.ServerSettingsService;
   const ceiling = settingsService.managedPolicy?.limits?.maxRuntimeMode;
+  const loadImportedThread = (threadId: ThreadId) =>
+    orchestrator.getThreadRecords(threadId, ["messages", "runs"]);
+
+  const appendHistory = Effect.fn("AgentSessionImporter.appendHistory")(function* (
+    threadId: ThreadId,
+    existing: Effect.Success<ReturnType<typeof loadImportedThread>>,
+    thread: AgentSessionScanner.AgentSessionThread,
+  ) {
+    const stored = existing.messages;
+    if (
+      stored.length > thread.messages.length ||
+      stored.some(
+        (message, index) =>
+          message.role !== thread.messages[index]?.role ||
+          message.text !== thread.messages[index]?.text,
+      )
+    ) {
+      return false;
+    }
+    const added = thread.messages.slice(stored.length);
+    if (added.length > 0) {
+      // Only extend a known prefix. A truncated transcript can hide a changed prefix.
+      if (
+        thread.source !== "codex" ||
+        thread.omittedMessageCount > 0 ||
+        existing.runs.length > 0 ||
+        existing.thread.deletedAt !== null
+      ) {
+        return false;
+      }
+      const updatedAt = dateTime(added.at(-1)?.createdAt ?? thread.updatedAt);
+      yield* eventSink.write({
+        events: [
+          ...added.flatMap((message, index) =>
+            messageEvents({ threadId, index: stored.length + index, message }),
+          ),
+          {
+            id: EventId.make(
+              `${IMPORT_EVENT_PREFIX}:thread:${threadId}:append:${thread.messages.length}`,
+            ),
+            type: "thread.metadata-updated",
+            threadId,
+            providerInstanceId: existing.thread.providerInstanceId,
+            occurredAt: updatedAt,
+            payload: {
+              ...existing.thread,
+              updatedAt: DateTime.isGreaterThan(updatedAt, existing.thread.updatedAt)
+                ? updatedAt
+                : existing.thread.updatedAt,
+            },
+          },
+        ],
+      });
+    }
+    return added.length > 0 ? true : null;
+  });
+
+  const codexSources = (payload: unknown) =>
+    AgentSessionScanner.decodeImportedTranscriptPayload(payload).pipe(
+      Option.map(
+        (decoded) =>
+          decoded.importedTranscripts?.filter((source) => source.provider === "codex") ?? [],
+      ),
+      Option.getOrElse(() => []),
+    );
+
+  const refreshCodexThread = Effect.fn("AgentSessionImporter.refreshCodexThread")(function* (
+    threadId: ThreadId,
+    sources: ReadonlyArray<AgentSessionImportSource>,
+    projectId?: ProjectId,
+  ) {
+    for (const source of sources) {
+      const snapshot = yield* scanner.refreshCodexTranscript(source);
+      if (snapshot === null) continue;
+      if (snapshot === "unavailable") return { importedCount: 0, skippedCount: 1 };
+      return yield* threadCommands.withLock(
+        threadId,
+        Effect.gen(function* () {
+          const existing = yield* loadImportedThread(threadId);
+          if (
+            (projectId !== undefined && existing.thread.projectId !== projectId) ||
+            existing.thread.historyOrigin !== "v1_import" ||
+            existing.thread.deletedAt !== null
+          ) {
+            return { importedCount: 0, skippedCount: 1 };
+          }
+          const appended = yield* appendHistory(threadId, existing, snapshot.thread);
+          if (appended === false) return { importedCount: 0, skippedCount: 1 };
+          yield* runtimes.recordImportedTranscript({ threadId, source: snapshot.source });
+          return { importedCount: appended ? 1 : 0, skippedCount: 0 };
+        }),
+      );
+    }
+    return { importedCount: 0, skippedCount: 0 };
+  });
+
+  const refreshTrackedCodexThreads = Effect.gen(function* () {
+    const rows = yield* runtimes.list();
+    yield* Effect.forEach(
+      rows,
+      (runtime) =>
+        refreshCodexThread(runtime.threadId, codexSources(runtime.runtimePayload)).pipe(
+          Effect.catch((cause) =>
+            Effect.logDebug("Could not refresh an imported Codex thread", {
+              threadId: runtime.threadId,
+              cause,
+            }),
+          ),
+        ),
+      { discard: true },
+    );
+  });
+
+  const startCodexRefresh = refreshTrackedCodexThreads.pipe(
+    Effect.catch((cause) =>
+      Effect.logWarning("Could not refresh imported Codex threads", { cause }),
+    ),
+    Effect.repeat(Schedule.spaced("5 seconds")),
+    Effect.forkScoped,
+    Effect.asVoid,
+  );
+
   const importRecentAgentThreads = Effect.fn("importRecentAgentThreadsV2")(function* (
     input: AgentSessionImportInput,
   ) {
+    if (input.threadId !== undefined) {
+      const threadId = input.threadId;
+      return yield* Effect.gen(function* () {
+        const runtime = yield* runtimes.getByThreadId({ threadId });
+        const sources = Option.isSome(runtime) ? codexSources(runtime.value.runtimePayload) : [];
+        if (sources.length === 0) return { importedCount: 0, skippedCount: 1 };
+        return yield* refreshCodexThread(threadId, sources, input.projectId);
+      }).pipe(
+        Effect.mapError(
+          (cause) => new AgentSessionScanError({ operation: "read-projects", cause }),
+        ),
+      );
+    }
     const project = yield* projects.getById(input.projectId).pipe(
       Effect.mapError((cause) => new AgentSessionScanError({ operation: "read-projects", cause })),
       Effect.flatMap(
@@ -596,7 +733,7 @@ const make = Effect.gen(function* () {
     return yield* commit(messages);
   });
 
-  return { importRecentAgentThreads, importNativeHistory };
+  return { importRecentAgentThreads, importNativeHistory, startCodexRefresh };
 });
 
 type AgentSessionImporterShape = Effect.Success<typeof make>;

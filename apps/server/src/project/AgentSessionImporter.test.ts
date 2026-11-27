@@ -279,6 +279,8 @@ const makeImporter = Effect.fn(function* (
   const importer = Context.get(context, AgentSessionImporter.AgentSessionImporter);
   return {
     run: importer.importRecentAgentThreads({ projectId }),
+    refresh: (threadId: ThreadId) => importer.importRecentAgentThreads({ projectId, threadId }),
+    startCodexRefresh: importer.startCodexRefresh,
     importNativeHistory: importer.importNativeHistory,
     published,
   };
@@ -573,6 +575,52 @@ it.effect("does not certify new native history after a partial import retry", ()
         (message) => message.text,
       ),
     ).toEqual(["Fix it", "Fixed"]);
+  }).pipe(Effect.scoped, Effect.provide(persistence)),
+);
+
+it.effect("refreshes only the selected import and follows later Codex writes automatically", () =>
+  Effect.gen(function* () {
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const first = candidate(CODEX_MODEL_SELECTION, "refresh-codex");
+    const other = candidate(CODEX_MODEL_SELECTION, "other-codex");
+    const threadId = importId(first);
+    let current: typeof first | null = null;
+    const importer = yield* makeImporter([], Effect.void, undefined, undefined, undefined, {
+      workspaceRoot: "/workspace/project",
+      scanner: {
+        scan: Effect.succeed({ candidates: [], scannedAt: timestamp }),
+        recentThreads: () => Stream.fromIterable([first, other]),
+        refreshCodexTranscript: (source) =>
+          Effect.sync(() =>
+            current !== null &&
+            source.providerSessionId === current.source.providerSessionId &&
+            source.size !== current.source.size
+              ? { source: current.source, thread: current.thread }
+              : null,
+          ),
+      },
+    });
+    yield* importer.run;
+    const changed = candidate(CODEX_MODEL_SELECTION, first.source.providerSessionId);
+    changed.source.size += 1;
+    changed.thread.messages.push({ role: "user", text: "Manual refresh", createdAt: timestamp });
+    current = changed;
+    expect(yield* importer.refresh(importId(other))).toEqual({ importedCount: 0, skippedCount: 0 });
+    expect(yield* importer.refresh(threadId)).toEqual({ importedCount: 1, skippedCount: 0 });
+    expect(yield* importer.refresh(threadId)).toEqual({ importedCount: 0, skippedCount: 0 });
+    yield* importer.startCodexRefresh;
+    const later = candidate(CODEX_MODEL_SELECTION, first.source.providerSessionId);
+    later.source.size = changed.source.size + 1;
+    later.thread.messages.push(
+      { role: "user", text: "Manual refresh", createdAt: timestamp },
+      { role: "assistant", text: "Automatic refresh", createdAt: timestamp },
+    );
+    current = later;
+    yield* TestClock.adjust("15 seconds");
+    const records = yield* projections.getThreadRecords(threadId, ["messages"]);
+    expect(records.messages.map((message) => message.text)).toEqual(
+      later.thread.messages.map((message) => message.text),
+    );
   }).pipe(Effect.scoped, Effect.provide(persistence)),
 );
 

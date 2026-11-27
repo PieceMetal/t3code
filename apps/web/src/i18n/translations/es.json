@@ -12793,5 +12793,9 @@
     ")"
   ],
   "33d18dda74f6d7b3": "Cancelar la fusión automática de la pila",
-  "012c67c7f1a99e33": "Fusión automática de la pila"
+  "012c67c7f1a99e33": "Fusión automática de la pila",
+  "dcbd692ae51925b4": "Refresh Codex history",
+  "f072c6ba41b19640": "Could not refresh Codex history",
+  "914aa4c7f5564238": "Codex history updated",
+  "b3f56dbe3826f30d": "Codex history is up to date"
 }

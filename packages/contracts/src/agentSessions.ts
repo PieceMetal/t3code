@@ -1,5 +1,11 @@
 import * as Schema from "effect/Schema";
-import { IsoDateTime, NonNegativeInt, ProjectId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import {
+  IsoDateTime,
+  NonNegativeInt,
+  ProjectId,
+  ThreadId,
+  TrimmedNonEmptyString,
+} from "./baseSchemas.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
 export const AgentSessionSource = Schema.Literals(["claudeAgent", "codex", "pi"]);
@@ -50,6 +56,7 @@ export type AgentSessionScanResult = typeof AgentSessionScanResult.Type;
 
 export const AgentSessionImportInput = Schema.Struct({
   projectId: ProjectId,
+  threadId: Schema.optional(ThreadId),
   expectedWorkspaceRoot: Schema.optional(TrimmedNonEmptyString),
 });
 export type AgentSessionImportInput = typeof AgentSessionImportInput.Type;

@@ -48,6 +48,7 @@ import {
 } from "@t3tools/client-runtime/state/project-grouping";
 import { buildPhysicalToLogicalProjectKeyMap } from "../sidebarProjectGrouping";
 import { threadRuntimeCanArchive } from "@t3tools/client-runtime/state/models";
+import { canRefreshCodexHistory, useRefreshCodexHistory } from "./useRefreshCodexHistory";
 import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
@@ -96,6 +97,7 @@ export function useThreadActionMenu(input: {
   const regenerateThreadTitle = useOrchestrationCommand(threadEnvironment.regenerateTitle, {
     reportFailure: false,
   });
+  const refreshCodexHistory = useRefreshCodexHistory();
   const handleNewThread = useNewThreadHandler();
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
@@ -142,6 +144,7 @@ export function useThreadActionMenu(input: {
       const items = buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
         canFind: onFind !== undefined,
+        canRefreshCodexHistory: canRefreshCodexHistory(thread),
         branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,
@@ -197,6 +200,9 @@ export function useThreadActionMenu(input: {
         }
       };
       switch (action) {
+        case "refresh-codex-history":
+          await refreshCodexHistory(thread);
+          return;
         case "find":
           onFind?.(threadRef);
           return;

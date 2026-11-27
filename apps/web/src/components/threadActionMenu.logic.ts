@@ -6,6 +6,7 @@ import { m, type MessageResolver } from "../i18n/messages";
 
 export type ThreadActionMenuId =
   | "find"
+  | "refresh-codex-history"
   | "new-thread-on-branch"
   | "filter-by-project"
   | "turn-into-project"
@@ -96,6 +97,7 @@ export function buildDraftActionMenuItems(
 export interface ThreadActionMenuState {
   readonly canOperate: boolean;
   readonly canFind?: boolean;
+  readonly canRefreshCodexHistory?: boolean;
   /** False where no inline title editor is rendered, such as sidebar search results. */
   readonly canRename?: boolean;
   readonly branch: string | null;
@@ -150,6 +152,15 @@ export function buildThreadActionMenuItems(
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
     ...(state.canFind
       ? [{ id: "find" as const, label: resolve(msg("Find in thread")), icon: "text-search" }]
+      : []),
+    ...(state.canRefreshCodexHistory && state.canOperate
+      ? [
+          {
+            id: "refresh-codex-history" as const,
+            label: resolve(msg("Refresh Codex history")),
+            icon: "refresh-cw",
+          },
+        ]
       : []),
     ...(state.branch
       ? [

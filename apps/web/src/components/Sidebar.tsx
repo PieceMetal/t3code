@@ -130,6 +130,7 @@ import {
   useAcknowledgeThreadWoke,
   useThreadActions,
 } from "../hooks/useThreadActions";
+import { canRefreshCodexHistory, useRefreshCodexHistory } from "../hooks/useRefreshCodexHistory";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
@@ -962,6 +963,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });
+  const refreshCodexHistory = useRefreshCodexHistory();
   const regenerateThreadTitle = useOrchestrationCommand(threadEnvironment.regenerateTitle, {
     reportFailure: false,
   });
@@ -2710,6 +2712,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
             buildThreadActionMenuItems({
+              canRefreshCodexHistory: canRefreshCodexHistory(thread),
               canOperate: readEnvironmentScope(
                 threadRef.environmentId,
                 AuthOrchestrationOperateScope,
@@ -2855,6 +2858,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             }
             return;
           }
+          case "refresh-codex-history":
+            await refreshCodexHistory(thread);
+            return;
           case "rename":
             startThreadRename(threadRef, thread.title);
             return;
